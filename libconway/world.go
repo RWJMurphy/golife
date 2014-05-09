@@ -22,9 +22,18 @@ func (w *world) SetCellAlive(x, y int) {
 }
 
 func (w *world) GetCell(x, y int) Cell {
-	if x < 0 || y < 0 || x >= w.width || y >= w.height {
-		return NewCell(false)
+	if x < 0 {
+		x = w.width + x
+	} else if x >= w.width {
+		x = x % w.width
 	}
+
+	if y < 0 {
+		y = w.height + y
+	} else if y >= w.height {
+		y = y % w.height
+	}
+
 	return w.cells[y][x]
 }
 
