@@ -1,5 +1,7 @@
 package conway
 
+import "runtime"
+
 type Coord struct {
 	x, y int
 }
@@ -53,12 +55,44 @@ func (w *world) GetAliveNeighbours(x, y int) int {
 	return n_count
 }
 
+type update_job struct {
+	w    *world
+	x, y int
+}
+
+type update_result struct {
+	x, y int
+	cell Cell
+}
+
+func cell_update_worker(jobs <-chan update_job, results chan<- update_result) {
+	for j := range jobs {
+		cell := j.w.GetCell(j.x, j.y)
+		neighbours := j.w.GetAliveNeighbours(j.x, j.y)
+		next_cell := cell.Next(neighbours)
+		results <- update_result{j.x, j.y, next_cell}
+	}
+}
+
 func (w *world) Next() *world {
-	next := NewWorld(w.width, w.height)
+	jobs := make(chan update_job, 100)
+	results := make(chan update_result, 100)
+
+	for i := 0; i < runtime.NumCPU(); i++ {
+		go cell_update_worker(jobs, results)
+	}
+
 	for y, row := range w.cells {
-		for x, cell := range row {
-			next.cells[y][x] = cell.Next(w.GetAliveNeighbours(x, y))
+		for x := range row {
+			jobs <- update_job{w, x, y}
 		}
+	}
+	close(jobs)
+
+	next := NewWorld(w.width, w.height)
+	for i := 0; i < w.width*w.height; i++ {
+		result := <-results
+		next.cells[result.y][result.x] = result.cell
 	}
 	return next
 }
